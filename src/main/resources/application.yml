@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: AuthService
+  datasource:
+    url: jdbc:mysql://localhost:3306/auth_db
+    username: root
+    password: arpitamittal
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+    database-platform: org.hibernate.dialect.MySQL8Dialect
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: ${GITHUB_CLIENT_ID}
+            client-secret: ${GITHUB_CLIENT_SECRET}
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - user:email
+              - read:user
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - email
+              - profile
+              - openid
+        provider:
+          github:
+            authorization-uri: https://github.com/login/oauth/authorize
+            token-uri: https://github.com/login/oauth/access_token
+            user-info-uri: https://api.github.com/user
+            user-name-attribute: id
+
+server:
+  port: 6060
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:saiofal;vkasfbehwqpofhjashofjaswfpojasfvbafop[hfifonfo[shjfwefjjfslajfsahfoshffasnbash[f}
+    issuer: ${JWT_ISSUER:auth-service}
+    access-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:900}       # 15 minutes
+    refresh-ttl-seconds: ${JWT_REFRESH_TTL_SECONDS:1209600} # 14 days
+    refresh-cookie-name: ${JWT_REFRESH_COOKIE_NAME:refresh_token}
+    cookie-secure: ${JWT_COOKIE_SECURE:true}
+    cookie-same-site: ${JWT_COOKIE_SAME_SITE:Lax}
+
+app:
+  cors:
+    allowed-origins: "http://localhost:5173" #frontend origin should be configured here.
+  auth:
+    success-redirect: "http://localhost:5173/auth/success"
+    failure-redirect: "http://localhost:5173/auth/failure"
