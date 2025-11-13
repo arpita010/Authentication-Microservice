@@ -12,11 +12,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class RegisterResponse {
-    private UUID id;
-    private String email;
-    private String name;
-    private String image;
-    private boolean enabled;
-    private Instant createdAt;
-    private Instant updatedAt;
+  private UUID id;
+  private String email;
+  private String name;
+  private String image;
+  private Boolean enabled;
+  private Instant createdAt;
+  private Instant updatedAt;
 }

@@ -19,17 +19,16 @@ public class UserService {
         userRepository
             .findByEmail(email)
             .orElseGet(
-                () -> {
-                  return User.builder()
-                      .providerId(providerId)
-                      .email(email)
-                      .name(username)
-                      .provider(provider)
-                      .image(image)
-                      .password("")
-                      .enabled(true)
-                      .build();
-                });
+                () ->
+                    User.builder()
+                        .providerId(providerId)
+                        .email(email)
+                        .name(username)
+                        .provider(provider)
+                        .image(image)
+                        .password("")
+                        .enabled(true)
+                        .build());
     return userRepository.save(user);
   }
 }

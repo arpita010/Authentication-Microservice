@@ -9,12 +9,12 @@ import com.app.service.AuthenticationService;
 import com.app.service.CookieService;
 import com.app.service.JwtService;
 import com.app.service.UserService;
-import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,16 +25,15 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.Principal;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
@@ -50,6 +49,8 @@ public class AuthController {
 
   @PostMapping("/register")
   public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
+    log.info("Request REceived");
+
     RegisterResponse response = authService.register(request);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
@@ -62,30 +63,29 @@ public class AuthController {
     SecurityContextHolder.getContext().setAuthentication(authentication);
     User user =
         userRepository
-            .findByEmail(request.email())
+            .findByEmail(request.getEmail())
             .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
     if (user.getPassword() == null) {
-      throw new BadCredentialsException("Password login is not available for this account");
+      throw new BadCredentialsException("Password is required.");
     }
     if (!user.getEnabled()) {
       throw new DisabledException("User is disabled");
     }
     String jti = UUID.randomUUID().toString();
-    RefreshToken rt =
+    RefreshToken refreshToken =
         RefreshToken.builder()
             .jti(jti)
             .user(user)
             .expiresAt(Instant.now().plusSeconds(jwtService.getRefreshTtlSeconds()))
             .revoked(false)
             .build();
-    refreshTokenRepository.save(rt);
+    refreshTokenRepository.save(refreshToken);
 
     String accessToken = jwtService.generateAccessToken(user);
-    String refreshToken = jwtService.generateRefreshToken(user, jti);
+    String generatedRefreshToken = jwtService.generateRefreshToken(user, jti);
 
-    // Use CookieUtil (same behavior)
     cookieService.attachRefreshCookie(
-        response, refreshToken, (int) jwtService.getRefreshTtlSeconds().longValue());
+        response, generatedRefreshToken, (int) jwtService.getRefreshTtlSeconds().longValue());
     cookieService.addNoStoreHeaders(response);
 
     return ResponseEntity.ok()
@@ -93,7 +93,7 @@ public class AuthController {
         .body(
             TokenResponse.bearerWithUser(
                 accessToken,
-                refreshToken,
+                generatedRefreshToken,
                 900,
                 new UserDto(
                     user.getName(),
@@ -107,7 +107,7 @@ public class AuthController {
   private Authentication authenticate(LoginRequest request) {
     try {
       return authenticationManager.authenticate(
-          new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+          new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
     } catch (Exception e) {
       throw new BadCredentialsException("Invalid username or password !!");
     }
@@ -116,11 +116,11 @@ public class AuthController {
   @PostMapping("/refresh")
   @Transactional
   public ResponseEntity<TokenResponse> refresh(
-      @RequestBody(required = false) RefreshTokenRequest body,
+      @RequestBody(required = false) RefreshTokenRequest refreshTokenRequest,
       HttpServletRequest request,
       HttpServletResponse response) {
     String token =
-        readRefreshTokenFromRequest(body, request)
+        readRefreshTokenFromRequest(refreshTokenRequest, request)
             .orElseThrow(() -> new BadCredentialsException("Refresh token missing"));
 
     if (!jwtService.isRefreshToken(token)) {
@@ -149,19 +149,18 @@ public class AuthController {
     refreshTokenRepository.save(stored);
 
     User user = stored.getUser();
-    RefreshToken newRt =
+    RefreshToken newRefreshToken =
         RefreshToken.builder()
             .jti(newJti)
             .user(user)
             .expiresAt(Instant.now().plusSeconds(jwtService.getRefreshTtlSeconds()))
             .revoked(false)
             .build();
-    refreshTokenRepository.save(newRt);
+    refreshTokenRepository.save(newRefreshToken);
 
     String newAccess = jwtService.generateAccessToken(user);
     String newRefresh = jwtService.generateRefreshToken(user, newJti);
 
-    // Use CookieUtil (same behavior)
     cookieService.attachRefreshCookie(
         response, newRefresh, (int) jwtService.getRefreshTtlSeconds().longValue());
     cookieService.addNoStoreHeaders(response);
@@ -187,11 +186,10 @@ public class AuthController {
                             refreshTokenRepository.save(rt);
                           });
                 }
-              } catch (JwtException ignored) {
+              } catch (Exception e) {
               }
             });
 
-    // Use CookieUtil (same behavior)
     cookieService.clearRefreshCookie(response);
     cookieService.addNoStoreHeaders(response);
     SecurityContextHolder.clearContext();
@@ -204,9 +202,7 @@ public class AuthController {
     if (request.getCookies() != null) {
       Optional<String> fromCookie =
           Arrays.stream(request.getCookies())
-              .filter(
-                  c ->
-                      cookieService.getRefreshCookieName().equals(c.getName())) // <-- use util name
+              .filter(c -> cookieService.getRefreshCookieName().equals(c.getName()))
               .map(Cookie::getValue)
               .filter(v -> v != null && !v.isBlank())
               .findFirst();
@@ -216,8 +212,8 @@ public class AuthController {
     }
 
     // 2) Body
-    if (body != null && body.refreshToken() != null && !body.refreshToken().isBlank()) {
-      return Optional.of(body.refreshToken().trim());
+    if (body != null && body.getRefreshToken() != null && !body.getRefreshToken().isBlank()) {
+      return Optional.of(body.getRefreshToken().trim());
     }
 
     // 3) Custom header
@@ -243,10 +239,10 @@ public class AuthController {
     return Optional.empty();
   }
 
-  @GetMapping("/me")
-  public User getCurrentUser(Principal principal) {
-    return userRepository
-        .findByEmail(principal.getName())
-        .orElseThrow(() -> new UsernameNotFoundException("You are not loggedIn"));
-  }
+  //  @GetMapping("/me")
+  //  public User getCurrentUser(Principal principal) {
+  //    return userRepository
+  //        .findByEmail(principal.getName())
+  //        .orElseThrow(() -> new UsernameNotFoundException("You are not loggedIn"));
+  //  }
 }

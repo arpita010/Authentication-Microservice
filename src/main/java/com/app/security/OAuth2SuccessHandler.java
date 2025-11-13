@@ -12,7 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.UUID;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
@@ -35,8 +36,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
   private final CookieService cookieService;
 
   private final RefreshTokenRepository refreshTokenRepository;
-
-  private final Logger logger = org.slf4j.LoggerFactory.getLogger(OAuth2SuccessHandler.class);
 
   @Value("${app.auth.success-redirect}")
   private String fronendRedirectURL;
@@ -55,7 +54,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
       registrationId = token.getAuthorizedClientRegistrationId();
     }
 
-    logger.debug("OAuth2 user attributes: {}", oAuth2User.getAttributes());
+    log.debug("OAuth2 user attributes: {}", oAuth2User.getAttributes());
 
     User user;
     switch (registrationId) {
