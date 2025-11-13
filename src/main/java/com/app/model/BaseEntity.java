@@ -1,15 +1,23 @@
 package com.app.model;
 
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import java.util.Date;
+import java.time.Instant;
+import java.util.UUID;
 
 @Data
 @MappedSuperclass
 public class BaseEntity {
-  @CreationTimestamp private Date createdAt;
-  @UpdateTimestamp private Date updatedAt;
+  @Id
+  @GeneratedValue(strategy = GenerationType.UUID)
+  private UUID id;
+
+  @CreationTimestamp private Instant createdAt;
+  @UpdateTimestamp private Instant updatedAt;
 }

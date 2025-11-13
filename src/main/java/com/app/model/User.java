@@ -1,5 +1,6 @@
 package com.app.model;
 
+import com.app.constants.Constants;
 import com.app.constants.Provider;
 import jakarta.persistence.*;
 import lombok.*;
@@ -10,16 +11,12 @@ import java.time.Instant;
 import java.util.*;
 
 @Entity
-@Table(name = "user")
+@Table(name = Constants.USER_TABLE_NAME)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class User extends BaseEntity {
-  @Id
-  @GeneratedValue(strategy = GenerationType.UUID)
-  private UUID id;
-
   private String providerId;
 
   @Column(unique = true, nullable = false)
